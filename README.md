@@ -205,6 +205,45 @@ Built with [reapy](https://github.com/RomeoDespwortes/reapy) for REAPER communic
 
 ---
 
+## Roadmap
+
+Scythe v0.1 is the MCP server foundation. Here's what's coming next:
+
+### Skills (slash commands)
+Pre-built workflows you can trigger from Claude Code:
+- `/scythe:mix` — guided mixing workflow (gain staging, EQ, compression, bus routing)
+- `/scythe:session` — set up a session from scratch (create tracks, load templates, configure I/O)
+- `/scythe:bounce` — export stems, master bus, or individual tracks with naming conventions
+- `/scythe:midi` — generate MIDI patterns from descriptions (chord progressions, drum patterns, arpeggios)
+- `/scythe:cleanup` — remove empty tracks, unused items, and organize markers
+
+### Lightweight mode
+Reduce overhead for lower-spec machines:
+- Lazy tool loading — only mount domains you actually use
+- Configurable tool subsets via environment variables
+- Minimal memory footprint when idle
+
+### Hooks
+Automated actions triggered by events:
+- Auto-save REAPER project on git commit
+- Sync markers with project timeline notes
+- Auto-backup before destructive operations
+
+### Expanded tool coverage
+- **Video** — timeline sync, video track management
+- **SWS extensions** — access to the SWS/S&M action set
+- **ReaPack** — install and manage REAPER packages from Claude
+- **Custom actions** — create and chain REAPER actions programmatically
+
+### Community
+- Shared skill library — contribute and discover workflows
+- Template packs — session templates for genres (EDM, orchestral, podcast, etc.)
+- Integration examples — combining Scythe with other MCP servers
+
+Have an idea? [Open an issue](https://github.com/notpaddy2k/reaper-mcp/issues) or submit a PR.
+
+---
+
 ## Contributing
 
 PRs welcome! Two ways to contribute:
