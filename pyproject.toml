@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "reaper-mcp"
+version = "0.1.0"
+description = "Comprehensive MCP server for controlling REAPER DAW"
+requires-python = ">=3.12"
+dependencies = [
+    "python-reapy>=0.10.0",
+    "fastmcp>=3.0.0",
+]
+
+[project.scripts]
+reaper-mcp = "reaper_mcp.__main__:main"
