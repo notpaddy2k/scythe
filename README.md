@@ -1,120 +1,113 @@
 # Scythe
 
-> Give Claude full control of your REAPER DAW.
+### Talk to your DAW. Claude handles the rest.
 
-Scythe is an MCP server with 82 tools across 16 domains — play, record, mix, edit MIDI, automate, render, and more. Works with Claude Desktop and Claude Code on Windows, macOS, and Linux.
+Scythe connects Claude to [REAPER](https://www.reaper.fm/) through 82 MCP tools across 16 domains. Control playback, manage tracks, tweak FX parameters, write MIDI, automate envelopes, render — all from natural language.
+
+One prompt replaces dozens of clicks.
+
+```
+"Add a track called Synth Pad, load Serum, set the cutoff to 60% and reverb mix to 40%"
+```
+
+```
+"Create an 8-bar MIDI pattern — C minor chord progression, quarter notes, velocity 100"
+```
+
+```
+"Solo the drum bus, mute everything else, and render to WAV"
+```
+
+Works with **Claude Desktop** and **Claude Code** on Windows, macOS, and Linux.
 
 ---
 
-## What can you do with it?
-
-Ask Claude things like:
-
-- *"Add a new track called Bass and set it to -6 dB"*
-- *"List all the FX on track 1 and show me their parameter values"*
-- *"Create a 4-bar MIDI pattern with a C minor chord progression"*
-- *"Add a marker at 30 seconds called Chorus"*
-- *"Set track 3 automation to write mode and add volume envelope points"*
-- *"Mute tracks 4 through 6 and solo track 1"*
-- *"Render the project with the current settings"*
-
-### All 82 tools
+## What's inside
 
 | Domain | Tools | What you can do |
 |--------|:-----:|-----------------|
-| **Project & Transport** | 8 | Get project info, play/stop/pause/record, move cursor, save |
-| **Tracks** | 10 | List/add/delete tracks, volume, pan, mute, solo, arm, color |
+| **Project & Transport** | 8 | Play, stop, pause, record, move cursor, get project info, save |
+| **Tracks** | 10 | Add/delete tracks, set volume, pan, mute, solo, arm, color |
 | **Track FX** | 9 | Add/remove FX, tweak parameters, browse presets, copy FX chains |
-| **Take FX** | 5 | Same as track FX but for individual item takes |
+| **Take FX** | 5 | Same as track FX but scoped to individual item takes |
 | **Sends & Receives** | 6 | Create routing, adjust send levels, mute sends |
-| **Markers & Regions** | 6 | Drop markers, create regions, navigate by marker |
+| **Markers & Regions** | 6 | Drop markers, create regions, jump to any marker |
 | **Tempo** | 4 | Read/write tempo markers, change time signatures |
 | **Media Items** | 7 | Add/delete/move/split items on the timeline |
 | **MIDI** | 8 | Create MIDI items, add/edit/delete notes and CC events |
 | **Envelopes** | 6 | Add automation points, set modes (read/write/touch/latch) |
 | **Time Selection** | 3 | Set time selection, toggle loop on/off |
-| **Actions** | 3 | Run *any* REAPER action by ID or name (escape hatch) |
-| **Extended State** | 3 | Persistent key-value storage between sessions |
+| **Actions** | 3 | Run *any* REAPER action by command ID or name |
+| **Extended State** | 3 | Persistent key-value storage across sessions |
 | **Devices** | 2 | List audio and MIDI hardware |
 | **Render** | 2 | Insert media files, render/bounce the project |
 
-The **Actions** tools are an escape hatch — they can run *any* REAPER command by its ID, even ones not covered by the other 79 tools.
+The **Actions** tools are an escape hatch — they can trigger *any* REAPER command, even ones not covered by the other 79 tools. If REAPER can do it, Scythe can do it.
 
 ---
 
-## Setup Guide
+## Prerequisites
 
-Scythe talks to REAPER through [reapy](https://github.com/RomeoDespwortes/reapy), a Python bridge. You need to set this up once before installing Scythe.
+Scythe talks to REAPER through [reapy](https://github.com/RomeoDespwortes/reapy), a Python bridge. Three steps to set up — you only do this once.
 
-### Step 1 — Install Python 3.12
+### 1. Install Python 3.12
 
-> **Use Python 3.12 specifically.** Some users have had issues with 3.13. If you already have 3.12 installed, skip this step.
+> **Python 3.12 is recommended.** Versions 3.13+ have known issues with reapy. Your Python architecture (32/64-bit) must match your REAPER installation — most users run 64-bit.
 
-**Windows:** Download from [python.org/downloads](https://www.python.org/downloads/release/python-3120/) and install. Make sure to check "Add Python to PATH".
+| Platform | Download | Notes |
+|----------|----------|-------|
+| **Windows** | [Python 3.12.12 (64-bit)](https://www.python.org/ftp/python/3.12.12/python-3.12.12-amd64.exe) | Check **"Add Python to PATH"** during install |
+| **Windows (32-bit)** | [Python 3.12.12 (32-bit)](https://www.python.org/ftp/python/3.12.12/python-3.12.12.exe) | Only if you run 32-bit REAPER |
+| **macOS** | [Python 3.12.12 (universal)](https://www.python.org/ftp/python/3.12.12/python-3.12.12-macos11.pkg) | Or `brew install python@3.12` |
+| **Linux** | `sudo apt install python3.12` | Or your distro's package manager |
 
-**macOS:** `brew install python@3.12`
+All downloads at [python.org/downloads](https://www.python.org/downloads/release/python-31212/).
 
-**Linux:** `sudo apt install python3.12` (or your distro's equivalent)
+### 2. Enable Python in REAPER
 
-### Step 2 — Configure Python in REAPER
+1. Open REAPER > **Options > Preferences > Plug-Ins > ReaScript**
+2. Check **"Enable Python for use with ReaScript"**
+3. Set the **Python DLL path** to the folder containing the shared library:
 
-1. Open REAPER
-2. Go to **Options → Preferences → Plug-Ins → ReaScript**
-3. Check **"Enable Python for use with ReaScript"**
-4. Set the **Python DLL path** to where Python 3.12 is installed:
-   - Windows: `C:\Users\<you>\AppData\Local\Programs\Python\Python312\` with DLL `python312.dll`
-   - macOS: `/usr/local/Cellar/python@3.12/.../Frameworks/.../libpython3.12.dylib`
-   - Linux: `/usr/lib/python3.12/config-3.12-.../libpython3.12.so`
-5. Click **OK** and restart REAPER
+| Platform | Path | File |
+|----------|------|------|
+| **Windows** | `C:\Users\<you>\AppData\Local\Programs\Python\Python312\` | `python312.dll` |
+| **macOS (brew)** | `/usr/local/Cellar/python@3.12/.../Frameworks/.../` | `libpython3.12.dylib` |
+| **macOS (pkg)** | `/Library/Frameworks/Python.framework/Versions/3.12/lib/` | `libpython3.12.dylib` |
+| **Linux** | `/usr/lib/python3.12/config-3.12-.../` | `libpython3.12.so` |
 
-### Step 3 — Install reapy and enable the bridge
+4. Click **OK** and **restart REAPER**
+
+### 3. Connect reapy
+
+Install reapy and configure the bridge:
 
 ```bash
 pip install python-reapy
 python -c "import reapy; reapy.configure_reaper()"
 ```
 
-> You may see a `DisabledDistAPIWarning` — that's expected. It means the bridge isn't active in REAPER yet.
+Now enable the bridge from inside REAPER:
 
-Now enable it from inside REAPER:
-
-1. Open REAPER
-2. Press **`?`** to open the **Actions** list
-3. Click **New action...** (bottom right) → **New ReaScript...**
-4. Name it `enable_bridge.py` and click Save
-5. Paste this code in the editor:
+1. Press **`?`** > **New action...** > **New ReaScript...** > name it `enable_bridge.py`
+2. Paste and save (**Ctrl+S** / **Cmd+S**):
    ```python
    import reapy
    reapy.config.enable_dist_api()
    reapy.print("Bridge Enabled! Restart REAPER now.")
    ```
-6. Press **Ctrl+S** to save and run it
-7. Check the REAPER console — you should see **"Bridge Enabled!"**
-8. **Close REAPER completely and reopen it**
+3. You should see **"Bridge Enabled!"** in the console — **restart REAPER**
+4. After restart, press **`?`**, search for **`reapy`**, and run **"Activate reapy server"**
 
-### Step 4 — Set reapy to start automatically
+> **Tip:** Right-click that action and choose **"Set as startup action"** so it runs automatically every time REAPER opens.
 
-After restarting REAPER:
-
-1. Press **`?`** to open the **Actions** list
-2. Search for **`reapy`**
-3. You should see **"reapy: Activate reapy server"**
-4. Run it — this starts the bridge so Claude can connect
-
-> **Tip:** To avoid running this manually every time, right-click the action and choose **"Set as startup action"** so it runs automatically when REAPER opens.
-
-### Step 5 — Verify it works
-
-With REAPER open and the reapy server active, run this in your terminal:
+**Verify it works** — with REAPER open, run:
 
 ```bash
 python -c "import reapy; print(reapy.Project().name)"
 ```
 
-You should see your project name (or an empty string for an untitled project). If you see an error, make sure:
-- REAPER is running
-- The "Activate reapy server" action has been run
-- Python 3.12 is the version being used
+You should see your project name (or an empty string for untitled projects). If not, check that REAPER is running and the reapy server is active.
 
 ---
 
@@ -162,20 +155,23 @@ Add to your Claude Desktop config at `%APPDATA%\Claude\claude_desktop_config.jso
 
 ## Troubleshooting
 
-### `DisabledDistAPIWarning` when running reapy from terminal
+**`DisabledDistAPIWarning` when running reapy from terminal**
 REAPER's bridge isn't active. Open REAPER, press `?`, search for "reapy", and run "Activate reapy server".
 
-### `AttributeError: module 'reapy.reascript_api' has no attribute 'ShowConsoleMsg'`
-Same issue — reapy falls back to "dummy mode" when it can't reach REAPER. Enable the bridge (see Step 3 above).
+**`AttributeError: module 'reapy.reascript_api' has no attribute 'ShowConsoleMsg'`**
+Same root cause — reapy falls back to "dummy mode" when it can't reach REAPER. Make sure the bridge is enabled (see step 3 above).
 
-### Python 3.13 issues
-Some users have reported problems with Python 3.13 and reapy. Use Python 3.12 for a known-good setup.
+**Python 3.13+ not working**
+reapy has known issues with Python 3.13 and newer. Stick with [Python 3.12](https://www.python.org/downloads/release/python-31212/) for a reliable setup.
 
-### REAPER doesn't show "reapy: Activate reapy server" in Actions
-Run `python -c "import reapy; reapy.configure_reaper()"` again, then follow Step 3 to manually create the bridge script inside REAPER.
+**REAPER doesn't show "reapy: Activate reapy server" in Actions**
+Run `python -c "import reapy; reapy.configure_reaper()"` again, then manually create the bridge script inside REAPER (step 3).
 
-### Connection works in terminal but not from Claude
-Make sure Claude is using the same Python version where reapy is installed. Check your Claude Desktop config or plugin settings point to Python 3.12.
+**32-bit vs 64-bit mismatch**
+If REAPER can't find your Python DLL, make sure you installed the same architecture. 64-bit REAPER needs 64-bit Python; 32-bit REAPER needs 32-bit Python.
+
+**Connection works in terminal but not from Claude**
+Make sure Claude is using the same Python where reapy is installed. Check your Claude Desktop config or plugin settings point to Python 3.12.
 
 ---
 
