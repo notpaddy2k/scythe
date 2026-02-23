@@ -30,7 +30,12 @@ Position = Annotated[float, Field(description="Position in seconds", ge=0.0)]
 
 
 def _enum_markers_regions(project):
-    """Enumerate all markers and regions using the low-level RPR API."""
+    """Enumerate all markers and regions using the low-level RPR API.
+
+    Note: reapy's dist API does not populate string out-parameters, so
+    marker/region names will be empty when read through the bridge.
+    Names are set correctly when created — they just can't be read back.
+    """
     markers = []
     regions = []
     i = 0
@@ -38,13 +43,14 @@ def _enum_markers_regions(project):
         ret = RPR.EnumProjectMarkers3(
             project.id, i, False, 0.0, 0.0, "", 0, 0
         )
-        # ret: (retval, proj, idx, isrgn, pos, rgnend, name, markrgnindex, color)
+        # ret: [retval, proj, idx, isrgn, pos, rgnend, name, markrgnindex, color]
         retval = ret[0]
         if retval == 0:
             break
         is_region = ret[3]
         pos = ret[4]
         rgnend = ret[5]
+        # name (ret[6]) is always empty via dist API — reapy limitation
         name = ret[6]
         index = ret[7]
         color = ret[8]

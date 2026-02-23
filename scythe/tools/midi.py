@@ -69,7 +69,7 @@ def create_midi_item(
         project = get_project()
         track = validate_track_index(project, track_index)
         with undo_block("Create MIDI item"):
-            RPR.CreateNewMIDIItemInProj(track.id, position, position + length)
+            RPR.CreateNewMIDIItemInProj(track.id, position, position + length, False)
         return {
             "track_index": track_index,
             "position": position,
@@ -104,7 +104,7 @@ def list_midi_notes(
         item = validate_item_index(track, item_index)
         take = _get_active_take(track, item)
 
-        _, note_count, _, _ = RPR.MIDI_CountEvts(take.id)
+        _, _, note_count, _, _ = RPR.MIDI_CountEvts(take.id, 0, 0, 0)
 
         notes = []
         for i in range(note_count):
@@ -113,7 +113,7 @@ def list_midi_notes(
                 selected, muted,
                 start_ppq, end_ppq,
                 channel, pitch, velocity,
-            ) = RPR.MIDI_GetNote(take.id, i)
+            ) = RPR.MIDI_GetNote(take.id, i, False, False, 0, 0, 0, 0, 0)
             notes.append({
                 "index": i,
                 "pitch": pitch,
@@ -202,7 +202,7 @@ def delete_midi_note(
         item = validate_item_index(track, item_index)
         take = _get_active_take(track, item)
 
-        _, note_count, _, _ = RPR.MIDI_CountEvts(take.id)
+        _, _, note_count, _, _ = RPR.MIDI_CountEvts(take.id, 0, 0, 0)
         if note_index < 0 or note_index >= note_count:
             raise ToolError(
                 f"Note index {note_index} out of range. "
@@ -244,7 +244,7 @@ def set_midi_note(
         item = validate_item_index(track, item_index)
         take = _get_active_take(track, item)
 
-        _, note_count, _, _ = RPR.MIDI_CountEvts(take.id)
+        _, _, note_count, _, _ = RPR.MIDI_CountEvts(take.id, 0, 0, 0)
         if note_index < 0 or note_index >= note_count:
             raise ToolError(
                 f"Note index {note_index} out of range. "
@@ -258,7 +258,7 @@ def set_midi_note(
             cur_selected, cur_muted,
             cur_start_ppq, cur_end_ppq,
             cur_channel, cur_pitch, cur_velocity,
-        ) = RPR.MIDI_GetNote(take.id, note_index)
+        ) = RPR.MIDI_GetNote(take.id, note_index, False, False, 0, 0, 0, 0, 0)
 
         # Apply only the fields that were explicitly provided
         new_pitch = pitch if pitch is not None else cur_pitch
@@ -317,7 +317,7 @@ def list_midi_cc(
         item = validate_item_index(track, item_index)
         take = _get_active_take(track, item)
 
-        _, _, cc_count, _ = RPR.MIDI_CountEvts(take.id)
+        _, _, _, cc_count, _ = RPR.MIDI_CountEvts(take.id, 0, 0, 0)
 
         events = []
         for i in range(cc_count):
@@ -325,7 +325,7 @@ def list_midi_cc(
                 _retval, _take_id, _cc_idx,
                 selected, muted,
                 ppqpos, chanmsg, channel, msg2, msg3,
-            ) = RPR.MIDI_GetCC(take.id, i)
+            ) = RPR.MIDI_GetCC(take.id, i, False, False, 0, 0, 0, 0, 0)
             events.append({
                 "index": i,
                 "ppq_position": ppqpos,
@@ -413,7 +413,7 @@ def delete_midi_cc(
         item = validate_item_index(track, item_index)
         take = _get_active_take(track, item)
 
-        _, _, cc_count, _ = RPR.MIDI_CountEvts(take.id)
+        _, _, _, cc_count, _ = RPR.MIDI_CountEvts(take.id, 0, 0, 0)
         if cc_index < 0 or cc_index >= cc_count:
             raise ToolError(
                 f"CC index {cc_index} out of range. "
