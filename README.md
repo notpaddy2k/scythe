@@ -1,60 +1,86 @@
 # reaper-mcp
 
-MCP server for controlling [REAPER](https://www.reaper.fm/) DAW from Claude Desktop or Claude Code. Built with [FastMCP 3.x](https://gofastmcp.com/) and [reapy](https://github.com/RomeoDespwortes/reapy).
+> Give Claude full control of your REAPER DAW — play, record, mix, edit MIDI, automate, render, and more.
 
-## Features
+82 tools across 16 domains. Works with Claude Desktop and Claude Code.
 
-82 tools across 16 domains giving full control over REAPER:
+Built with [FastMCP 3.x](https://gofastmcp.com/) and [reapy](https://github.com/RomeoDespwortes/reapy).
 
-| Domain | Tools | Examples |
-|--------|-------|---------|
-| Project & Transport | 8 | Get project info, play/stop/record, set cursor position, save |
-| Tracks | 10 | List/add/delete tracks, set volume/pan/mute/solo/arm/color |
-| Track FX | 9 | Add/remove FX, get/set parameters, presets, copy FX between tracks |
-| Take FX | 5 | List/add/remove take FX, get/set parameters |
-| Sends & Receives | 6 | List/create/remove sends, set volume/pan/mute |
-| Markers & Regions | 6 | List/add/delete markers and regions, navigate to markers |
-| Tempo & Time Sig | 4 | Get tempo info, add/edit/delete tempo markers |
-| Media Items | 7 | List/add/delete items, set position/length, split items |
-| MIDI | 8 | Create MIDI items, add/edit/delete notes and CC events |
-| Envelopes | 6 | List envelopes, add/delete points, automation items, set mode |
-| Time Selection | 3 | Get/set time selection, toggle loop |
-| Actions | 3 | Execute any REAPER action by ID or name (escape hatch) |
-| Extended State | 3 | Read/write/delete persistent key-value storage |
-| Devices | 2 | List audio and MIDI devices |
-| Render | 2 | Insert media files, render project |
+---
 
-## Prerequisites
+## What can it do?
 
-- **REAPER** installed and running
-- **Python 3.12+**
-- **reapy** installed and its ReaScript extension enabled inside REAPER
+Ask Claude things like:
 
-### Setting up reapy in REAPER
+- *"Add a new track called Bass and set it to -6 dB"*
+- *"List all the FX on track 1 and show me their parameter values"*
+- *"Create a 4-bar MIDI pattern with a C minor chord progression"*
+- *"Add a marker at 30 seconds called Chorus"*
+- *"Set track 3 automation to write mode and add volume envelope points"*
+- *"Mute tracks 4 through 6 and solo track 1"*
+- *"Render the project with the current settings"*
 
-1. Install reapy: `pip install python-reapy`
-2. Run `python -c "import reapy; reapy.configure_reaper()"` — this installs the ReaScript helper into REAPER
-3. Restart REAPER
-4. Verify the connection: `python -c "import reapy; print(reapy.Project().name)"`
+### Full tool coverage
 
-## Installation
+| Domain | Tools | What you can do |
+|--------|:-----:|-----------------|
+| **Project & Transport** | 8 | Get project info, play/stop/pause/record, move cursor, save |
+| **Tracks** | 10 | List/add/delete tracks, volume, pan, mute, solo, arm, color |
+| **Track FX** | 9 | Add/remove FX, tweak parameters, browse presets, copy FX chains |
+| **Take FX** | 5 | Same as track FX but for individual item takes |
+| **Sends & Receives** | 6 | Create routing, adjust send levels, mute sends |
+| **Markers & Regions** | 6 | Drop markers, create regions, navigate by marker |
+| **Tempo** | 4 | Read/write tempo markers, change time signatures |
+| **Media Items** | 7 | Add/delete/move/split items on the timeline |
+| **MIDI** | 8 | Create MIDI items, add/edit/delete notes and CC events |
+| **Envelopes** | 6 | Add automation points, set modes (read/write/touch/latch) |
+| **Time Selection** | 3 | Set time selection, toggle loop on/off |
+| **Actions** | 3 | Run *any* REAPER action by ID or name (escape hatch) |
+| **Extended State** | 3 | Persistent key-value storage between sessions |
+| **Devices** | 2 | List audio and MIDI hardware |
+| **Render** | 2 | Insert media files, render/bounce the project |
 
-### Claude Desktop — One-Click (.mcpb)
+---
 
-Download the latest `reaper-mcp.mcpb` from [Releases](https://github.com/notpaddy2k/reaper-mcp/releases) and double-click it. Claude Desktop will install the extension automatically.
+## Quick Start
 
-Dependencies are handled via [uv](https://docs.astral.sh/uv/) — no manual Python setup needed.
+### 1. Set up reapy in REAPER (one time only)
 
-### Claude Code — Plugin Install
+You need REAPER running with reapy's bridge enabled so Claude can talk to it.
 
 ```bash
+pip install python-reapy
+python -c "import reapy; reapy.configure_reaper()"
+```
+
+Restart REAPER, then verify it works:
+
+```bash
+python -c "import reapy; print(reapy.Project().name)"
+```
+
+You should see your project name (or an empty string for an untitled project).
+
+### 2. Install the MCP server
+
+Pick whichever method matches your setup:
+
+#### Claude Desktop (one-click)
+
+Download `reaper-mcp.mcpb` from [Releases](https://github.com/notpaddy2k/reaper-mcp/releases) and double-click it. Done.
+
+Python dependencies are handled automatically via [uv](https://docs.astral.sh/uv/).
+
+#### Claude Code (plugin)
+
+```
 /plugin marketplace add notpaddy2k/reaper-mcp
 /plugin install reaper-mcp
 ```
 
-This registers the MCP server and any available skills automatically.
+The MCP server registers automatically.
 
-### Manual Install
+#### Manual
 
 ```bash
 git clone https://github.com/notpaddy2k/reaper-mcp.git
@@ -62,7 +88,7 @@ cd reaper-mcp
 pip install -e .
 ```
 
-Then add to your Claude Desktop config at `%APPDATA%\Claude\claude_desktop_config.json` (Windows) or `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+Then add to your Claude Desktop config (`%APPDATA%\Claude\claude_desktop_config.json` on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 
 ```json
 {
@@ -75,52 +101,58 @@ Then add to your Claude Desktop config at `%APPDATA%\Claude\claude_desktop_confi
 }
 ```
 
-> If `python` doesn't resolve to Python 3.12+, use the full path instead, e.g. `C:\\Users\\you\\AppData\\Local\\Programs\\Python\\Python312\\python.exe`
+### 3. Start using it
 
-### Standalone
+Open REAPER, restart Claude Desktop (or Claude Code), and start asking Claude to control your session.
 
-```bash
-python -m reaper_mcp
+---
+
+## Requirements
+
+- [REAPER](https://www.reaper.fm/) (any recent version)
+- Python 3.12+
+- [reapy](https://github.com/RomeoDespwortes/reapy) 0.10.0+
+
+---
+
+## How it works
+
+Each tool maps to REAPER's API via reapy. The server uses FastMCP's `mount()` pattern — 16 domain modules composed into one server:
+
+```
+reaper_mcp/
+├── server.py            # Mounts all 16 domain sub-servers
+├── helpers.py           # Connection, dB conversion, validation
+└── tools/
+    ├── project.py       # Project info & transport
+    ├── tracks.py        # Track management
+    ├── track_fx.py      # Track FX chain
+    ├── take_fx.py       # Take FX chain
+    ├── sends.py         # Routing (sends & receives)
+    ├── markers.py       # Markers & regions
+    ├── tempo.py         # Tempo & time signatures
+    ├── items.py         # Media items
+    ├── midi.py          # MIDI notes & CC
+    ├── envelopes.py     # Automation envelopes
+    ├── time_selection.py# Time selection & loop
+    ├── actions.py       # Action escape hatch
+    ├── ext_state.py     # Key-value storage
+    ├── devices.py       # Audio & MIDI devices
+    └── render.py        # Rendering & media import
 ```
 
-This starts the server on stdio, which any MCP client can connect to.
+The **Actions** tools (`perform_action`, `perform_named_action`) are an escape hatch — they can run *any* REAPER command, even ones not wrapped by the other 79 tools.
 
-## Project Structure
-
-```
-reaper-mcp/
-├── manifest.json            # .mcpb packaging manifest (Claude Desktop)
-├── .claude-plugin/          # Claude Code plugin registration
-│   ├── plugin.json
-│   └── marketplace.json
-├── .mcp.json                # Auto-registers MCP server for plugin users
-├── pyproject.toml
-└── reaper_mcp/
-    ├── __init__.py          # Package version
-    ├── __main__.py          # Entry point (python -m reaper_mcp)
-    ├── server.py            # Composes all domain sub-servers via mount()
-    ├── helpers.py           # Shared utilities (connection, dB conversion, validation)
-    └── tools/
-        ├── project.py       # Project info & transport controls
-        ├── tracks.py        # Track management
-        ├── track_fx.py      # Track FX chain
-        ├── take_fx.py       # Take/item FX chain
-        ├── sends.py         # Sends & receives routing
-        ├── markers.py       # Markers & regions
-        ├── tempo.py         # Tempo & time signature markers
-        ├── items.py         # Media items
-        ├── midi.py          # MIDI notes & CC events
-        ├── envelopes.py     # Envelopes & automation
-        ├── time_selection.py# Time selection & loop
-        ├── actions.py       # Action execution (escape hatch)
-        ├── ext_state.py     # Extended state key-value storage
-        ├── devices.py       # Audio & MIDI device info
-        └── render.py        # Rendering & media import
-```
+---
 
 ## Contributing
 
-PRs welcome! Skills are markdown files, tools are Python — both are easy to contribute to.
+PRs welcome! Two ways to contribute:
+
+- **Tools** — Python files in `reaper_mcp/tools/`. Add new tools or improve existing ones.
+- **Skills** — Markdown files in `skills/`. Add guided workflows (coming soon).
+
+---
 
 ## License
 
