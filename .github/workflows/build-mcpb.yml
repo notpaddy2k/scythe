@@ -1,0 +1,33 @@
+name: Build .mcpb
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build scythe.mcpb
+        run: git archive --format=zip HEAD -o scythe.mcpb
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scythe.mcpb
+          path: scythe.mcpb
+
+      # Attach .mcpb to GitHub Release when a tag is pushed
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: scythe.mcpb

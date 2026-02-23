@@ -40,12 +40,9 @@ def get_time_selection() -> dict:
             0.0,     # endOut
             False,   # allowautoseek
         )
-        # The return shape varies by binding; extract start/end from result
-        if isinstance(result, tuple):
-            start = result[2] if len(result) > 2 else result[0]
-            end = result[3] if len(result) > 3 else result[1]
-        else:
-            start, end = 0.0, 0.0
+        # RPR returns a list: [proj, isSet, isLoop, start, end, allowautoseek]
+        start = result[3]
+        end = result[4]
 
         # Read loop/repeat state: -1 = query current
         repeat_state = RPR.GetSetRepeatEx(project.id, -1)

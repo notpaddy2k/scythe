@@ -29,6 +29,53 @@ Position = Annotated[float, Field(description="Position in seconds", ge=0.0)]
 # ---------------------------------------------------------------------------
 
 
+def _enum_markers_regions(project):
+    """Enumerate all markers and regions using the low-level RPR API.
+
+    Note: reapy's dist API does not populate string out-parameters, so
+    marker/region names will be empty when read through the bridge.
+    Names are set correctly when created — they just can't be read back.
+    """
+    markers = []
+    regions = []
+    i = 0
+    while True:
+        ret = RPR.EnumProjectMarkers3(
+            project.id, i, False, 0.0, 0.0, "", 0, 0
+        )
+        # ret: [retval, proj, idx, isrgn, pos, rgnend, name, markrgnindex, color]
+        retval = ret[0]
+        if retval == 0:
+            break
+        is_region = ret[3]
+        pos = ret[4]
+        rgnend = ret[5]
+        # name (ret[6]) is always empty via dist API — reapy limitation
+        name = ret[6]
+        index = ret[7]
+        color = ret[8]
+        # Decode native color to RGB
+        if color:
+            r_val = (color >> 0) & 0xFF
+            g_val = (color >> 8) & 0xFF
+            b_val = (color >> 16) & 0xFF
+        else:
+            r_val = g_val = b_val = 0
+        entry = {
+            "index": index,
+            "position": pos,
+            "name": name,
+            "color": [r_val, g_val, b_val],
+        }
+        if is_region:
+            entry["end"] = rgnend
+            regions.append(entry)
+        else:
+            markers.append(entry)
+        i += 1
+    return markers, regions
+
+
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": False})
 def list_markers() -> dict:
     """List all markers in the current REAPER project.
@@ -37,15 +84,7 @@ def list_markers() -> dict:
     """
     try:
         project = get_project()
-        markers = [
-            {
-                "index": m.index,
-                "position": m.position,
-                "name": m.name,
-                "color": m.color,
-            }
-            for m in project.markers
-        ]
+        markers, _ = _enum_markers_regions(project)
         return {"n_markers": len(markers), "markers": markers}
     except ToolError:
         raise
@@ -62,16 +101,7 @@ def list_regions() -> dict:
     """
     try:
         project = get_project()
-        regions = [
-            {
-                "index": r.index,
-                "start": r.start,
-                "end": r.end,
-                "name": r.name,
-                "color": r.color,
-            }
-            for r in project.regions
-        ]
+        _, regions = _enum_markers_regions(project)
         return {"n_regions": len(regions), "regions": regions}
     except ToolError:
         raise
@@ -104,8 +134,8 @@ def add_marker(
             marker = project.add_marker(position, name=name, color=color)
         return {
             "index": marker.index,
-            "position": marker.position,
-            "name": marker.name,
+            "position": position,
+            "name": name,
         }
     except ToolError:
         raise
@@ -138,9 +168,9 @@ def add_region(
             region = project.add_region(start, end, name=name, color=color)
         return {
             "index": region.index,
-            "start": region.start,
-            "end": region.end,
-            "name": region.name,
+            "start": start,
+            "end": end,
+            "name": name,
         }
     except ToolError:
         raise
