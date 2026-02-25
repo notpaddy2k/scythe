@@ -487,16 +487,22 @@ def probe_fx_param_value(
                 f"probe_max ({probe_max})."
             )
 
-        # Save original value
-        original_value = RPR.TrackFX_GetParamNormalized(
+        # Save original value — reapy returns list from RPR calls
+        orig_ret = RPR.TrackFX_GetParamNormalized(
             track.id, fx_index, param_index
         )
-        try:
-            original_formatted = fx.params[param_index].formatted
-        except Exception:
-            _, _, _, original_formatted, _ = RPR.TrackFX_GetFormattedParamValue(
+        original_value = orig_ret if isinstance(orig_ret, float) else float(orig_ret)
+
+        def _read_display() -> str:
+            """Read the current formatted display via RPR (not cached reapy)."""
+            ret = RPR.TrackFX_GetFormattedParamValue(
                 track.id, fx_index, param_index, "", 256
             )
+            if isinstance(ret, (list, tuple)) and len(ret) >= 4:
+                return str(ret[3])
+            return str(ret)
+
+        original_formatted = _read_display()
 
         target_lower = target_display.strip().lower()
         found_value = None
@@ -513,12 +519,7 @@ def probe_fx_param_value(
                     track.id, fx_index, param_index, test_val
                 )
 
-                try:
-                    formatted = fx.params[param_index].formatted
-                except Exception:
-                    _, _, _, formatted, _ = RPR.TrackFX_GetFormattedParamValue(
-                        track.id, fx_index, param_index, "", 256
-                    )
+                formatted = _read_display()
 
                 if formatted.strip().lower() == target_lower:
                     found_value = test_val
