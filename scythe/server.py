@@ -14,6 +14,7 @@ from scythe.tools import (
     midi,
     project,
     render,
+    scripting,
     sends,
     take_fx,
     tempo,
@@ -40,3 +41,4 @@ mcp.mount(actions.mcp)
 mcp.mount(ext_state.mcp)
 mcp.mount(devices.mcp)
 mcp.mount(render.mcp)
+mcp.mount(scripting.mcp)
