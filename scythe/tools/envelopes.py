@@ -94,8 +94,8 @@ def _edit_envelope_chunk(env_id, *, active: bool | None = None,
     import reapy.reascript_api as RPR
 
     ret = RPR.GetEnvelopeStateChunk(env_id, "", 65536, False)
-    # reapy may return a tuple -- extract the string buffer defensively
-    if isinstance(ret, tuple):
+    # reapy returns a list [retval, env_id, chunk_str, buf_sz, isUndo]
+    if isinstance(ret, (list, tuple)):
         chunk = ret[2] if len(ret) >= 3 else ret[0]
     else:
         chunk = str(ret)
@@ -343,9 +343,6 @@ def create_fx_envelope(
                     f"on FX '{fx.name}'."
                 )
 
-            # Clear default points that REAPER may auto-insert
-            RPR.DeleteEnvelopePointRangeEx(env_id, -1, 0.0, float('inf'))
-
             # Activate and configure via chunk editing
             if activate or default_shape != 0:
                 _edit_envelope_chunk(
@@ -359,11 +356,14 @@ def create_fx_envelope(
         envelope_index = -1
         n_envelopes = RPR.CountTrackEnvelopes(track.id)
         for i in range(n_envelopes):
-            if RPR.GetTrackEnvelope(track.id, i) == env_id:
+            check_env = RPR.GetTrackEnvelope(track.id, i)
+            # reapy returns list — compare string representations
+            if str(check_env) == str(env_id):
                 envelope_index = i
                 break
 
-        _, _, env_name, _ = RPR.GetEnvelopeName(env_id, "", 256)
+        ret = RPR.GetEnvelopeName(env_id, "", 256)
+        env_name = ret[2] if isinstance(ret, (list, tuple)) and len(ret) >= 3 else str(ret)
         n_points = RPR.CountEnvelopePoints(env_id)
 
         return {
