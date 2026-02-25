@@ -187,10 +187,13 @@ def get_envelope_points(
         n_points = RPR.CountEnvelopePoints(env_id)
         points = []
         for i in range(n_points):
-            (
-                _retval, _env_id, _pt_idx,
-                time, value, shape, tension, selected,
-            ) = RPR.GetEnvelopePoint(env_id, i)
+            ret = RPR.GetEnvelopePoint(env_id, i, 0.0, 0.0, 0, 0.0, False)
+            # ret: [retval, env_id, pt_idx, time, value, shape, tension, selected]
+            time = ret[3]
+            value = ret[4]
+            shape = ret[5]
+            tension = ret[6]
+            selected = ret[7]
             points.append({
                 "index": i,
                 "time": time,
