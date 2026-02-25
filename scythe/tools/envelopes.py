@@ -82,6 +82,41 @@ def _validate_envelope_index(track, envelope_index: int):
     return RPR.GetTrackEnvelope(track.id, envelope_index)
 
 
+def _get_parmenv_range(env_id) -> tuple[float, float] | None:
+    """If *env_id* is an FX parameter envelope, return (min_val, max_val).
+
+    Parses the ``PARMENV <id> <min> <max> <default>`` line from the
+    envelope's state chunk.  Returns None for non-FX envelopes (volume,
+    pan, etc.).
+    """
+    import reapy.reascript_api as RPR
+
+    ret = RPR.GetEnvelopeStateChunk(env_id, "", 65536, False)
+    if isinstance(ret, (list, tuple)):
+        chunk = ret[2] if len(ret) >= 3 else ret[0]
+    else:
+        chunk = str(ret)
+
+    m = re.match(r'^<PARMENV\s+\S+\s+([\d.eE+-]+)\s+([\d.eE+-]+)', chunk)
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    return None
+
+
+def _normalized_to_raw(value: float, env_id) -> float:
+    """Convert a normalized 0-1 value to the envelope's raw range.
+
+    For FX parameter envelopes the raw range comes from the PARMENV
+    chunk header.  Non-FX envelopes (volume, pan, mute) are returned
+    unchanged since their native range is already 0-1 (or close to it).
+    """
+    rng = _get_parmenv_range(env_id)
+    if rng is None:
+        return value          # non-FX envelope — pass through
+    min_val, max_val = rng
+    return min_val + value * (max_val - min_val)
+
+
 def _edit_envelope_chunk(env_id, *, active: bool | None = None,
                          visible: bool | None = None,
                          default_shape: int | None = None) -> str:
@@ -237,9 +272,11 @@ def add_envelope_point(
         track = validate_track_index(project, track_index)
         env_id = _validate_envelope_index(track, envelope_index)
 
+        raw_value = _normalized_to_raw(value, env_id)
+
         with undo_block("Add envelope point"):
             RPR.InsertEnvelopePoint(
-                env_id, time, value, shape, tension,
+                env_id, time, raw_value, shape, tension,
                 False,  # selected
                 True,   # noSort -- we sort manually after
             )
@@ -544,6 +581,9 @@ def add_fx_envelope_points(
 
         _, _, env_name, _ = RPR.GetEnvelopeName(env_id, "", 256)
 
+        # Detect FX param range for normalized → raw conversion
+        parm_range = _get_parmenv_range(env_id)
+
         # Validate all points before mutating
         validated = []
         for i, pt in enumerate(points):
@@ -569,7 +609,13 @@ def add_fx_envelope_points(
                     f"Point at index {i}: tension must be -1.0 to 1.0, "
                     f"got {tension}."
                 )
-            validated.append((time, value, shape, tension))
+            # Convert normalized → raw for FX parameter envelopes
+            if parm_range is not None:
+                min_val, max_val = parm_range
+                raw_value = min_val + value * (max_val - min_val)
+            else:
+                raw_value = value
+            validated.append((time, raw_value, shape, tension))
 
         with undo_block(
             f"Add {len(validated)} envelope points to '{env_name}' "
