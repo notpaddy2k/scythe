@@ -14,16 +14,25 @@ from fastmcp.exceptions import ToolError
 # ---------------------------------------------------------------------------
 
 def get_project() -> reapy.Project:
-    """Get the current REAPER project. Raises ToolError if REAPER is unreachable."""
-    try:
-        project = reapy.Project()
-        _ = project.name  # force a round-trip to verify connection
-        return project
-    except Exception as e:
-        raise ToolError(
-            f"Cannot connect to REAPER. Ensure REAPER is running with the "
-            f"reapy extension enabled. Error: {e}"
-        )
+    """Get the current REAPER project. Raises ToolError if REAPER is unreachable.
+
+    If the cached TCP connection is stale (e.g. REAPER was restarted),
+    automatically reconnects once before giving up.
+    """
+    for attempt in range(2):
+        try:
+            if attempt == 1:
+                reapy.reconnect()
+            project = reapy.Project()
+            _ = project.name  # force a round-trip to verify connection
+            return project
+        except Exception as e:
+            if attempt == 0:
+                continue  # stale connection — retry after reconnect
+            raise ToolError(
+                f"Cannot connect to REAPER. Ensure REAPER is running with "
+                f"the reapy extension enabled. Error: {e}"
+            )
 
 
 # ---------------------------------------------------------------------------
