@@ -141,7 +141,7 @@ def run_eel_script(
         Field(
             description=(
                 "If true, the script should write its result via "
-                "extension_api('SetExtState', 'scythe_script_ipc', 'result', value, 0) "
+                "SetExtState(\"scythe_script_ipc\", \"result\", value, 0) "
                 "and the tool will return that value. Defaults to false."
             ),
         ),
