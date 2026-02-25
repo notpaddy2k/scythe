@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
 
 from pydantic import Field
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
 
-from scythe.helpers import get_project, validate_track_index, undo_block
+from scythe.helpers import get_project, validate_track_index, validate_fx_index, undo_block
 
 mcp = FastMCP("envelopes")
 
@@ -37,6 +38,8 @@ AutomationMode = Annotated[
         le=4,
     ),
 ]
+FxIndex = Annotated[int, Field(description="Zero-based FX slot index", ge=0)]
+ParamIndex = Annotated[int, Field(description="Zero-based FX parameter index", ge=0)]
 
 # ---------------------------------------------------------------------------
 # Shape label lookup (for readable output)
@@ -77,6 +80,51 @@ def _validate_envelope_index(track, envelope_index: int):
             f"(valid: 0-{n - 1})."
         )
     return RPR.GetTrackEnvelope(track.id, envelope_index)
+
+
+def _edit_envelope_chunk(env_id, *, active: bool | None = None,
+                         visible: bool | None = None,
+                         default_shape: int | None = None) -> str:
+    """Read an envelope's state chunk, apply edits, write it back.
+
+    Returns the modified chunk string.  Regex patterns use line-start
+    anchors (``(?m)^``) to avoid matching substrings like LVIS or
+    VOLENV2_ACT.
+    """
+    import reapy.reascript_api as RPR
+
+    ret = RPR.GetEnvelopeStateChunk(env_id, "", 65536, False)
+    # reapy may return a tuple -- extract the string buffer defensively
+    if isinstance(ret, tuple):
+        chunk = ret[2] if len(ret) >= 3 else ret[0]
+    else:
+        chunk = str(ret)
+
+    if not chunk:
+        raise ToolError("Failed to read envelope state chunk.")
+
+    if active is not None:
+        val = "1" if active else "0"
+        chunk = re.sub(r'(?m)^(ACT )\d', rf'\g<1>{val}', chunk)
+
+    if visible is not None:
+        val = "1" if visible else "0"
+        chunk = re.sub(r'(?m)^(VIS )\d', rf'\g<1>{val}', chunk)
+
+    if default_shape is not None:
+        if re.search(r'(?m)^DEFSHAPE ', chunk):
+            chunk = re.sub(
+                r'(?m)^(DEFSHAPE )\d+',
+                rf'\g<1>{default_shape}',
+                chunk,
+            )
+        else:
+            # Insert DEFSHAPE before the closing >
+            chunk = chunk.rstrip().rstrip('>').rstrip()
+            chunk += f'\nDEFSHAPE {default_shape}\n>'
+
+    RPR.SetEnvelopeStateChunk(env_id, chunk, False)
+    return chunk
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +238,7 @@ def add_envelope_point(
             RPR.InsertEnvelopePoint(
                 env_id, time, value, shape, tension,
                 False,  # selected
-                True,   # noSort — we sort manually after
+                True,   # noSort -- we sort manually after
             )
             RPR.Envelope_SortPoints(env_id)
         return {
@@ -240,6 +288,316 @@ def delete_envelope_points(
         raise
     except Exception as exc:
         raise ToolError(f"Failed to delete envelope points: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# FX envelope creation & management
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(annotations={"readOnlyHint": False, "openWorldHint": False})
+def create_fx_envelope(
+    track_index: TrackIndex,
+    fx_index: FxIndex,
+    param_index: ParamIndex,
+    activate: Annotated[bool, Field(description="Activate the envelope after creation")] = True,
+    default_shape: EnvelopeShape = 1,
+) -> dict:
+    """Create an automation envelope for an FX parameter.
+
+    Returns the envelope name, point count, and its index in the
+    track's envelope list.  If the envelope already exists it is
+    returned as-is (no duplicate is created).
+    """
+    try:
+        import reapy.reascript_api as RPR
+
+        project = get_project()
+        track = validate_track_index(project, track_index)
+        fx = validate_fx_index(track, fx_index)
+
+        if param_index < 0 or param_index >= fx.n_params:
+            raise ToolError(
+                f"Parameter index {param_index} out of range. "
+                f"FX '{fx.name}' has {fx.n_params} parameters "
+                f"(valid: 0-{fx.n_params - 1})."
+            )
+
+        # Get param name for readable output
+        try:
+            param_name = fx.params[param_index].name
+        except Exception:
+            _, _, _, param_name, _ = RPR.TrackFX_GetParamName(
+                track.id, fx_index, param_index, "", 256
+            )
+
+        with undo_block(
+            f"Create FX envelope for '{param_name}' on '{fx.name}' "
+            f"(track '{track.name}')"
+        ):
+            env_id = RPR.GetFXEnvelope(track.id, fx_index, param_index, True)
+
+            if not env_id:
+                raise ToolError(
+                    f"Failed to create envelope for parameter '{param_name}' "
+                    f"on FX '{fx.name}'."
+                )
+
+            # Clear default points that REAPER may auto-insert
+            RPR.DeleteEnvelopePointRangeEx(env_id, -1, 0.0, float('inf'))
+
+            # Activate and configure via chunk editing
+            if activate or default_shape != 0:
+                _edit_envelope_chunk(
+                    env_id,
+                    active=activate,
+                    visible=True if activate else None,
+                    default_shape=default_shape,
+                )
+
+        # Find this envelope's index in the track's envelope list
+        envelope_index = -1
+        n_envelopes = RPR.CountTrackEnvelopes(track.id)
+        for i in range(n_envelopes):
+            if RPR.GetTrackEnvelope(track.id, i) == env_id:
+                envelope_index = i
+                break
+
+        _, _, env_name, _ = RPR.GetEnvelopeName(env_id, "", 256)
+        n_points = RPR.CountEnvelopePoints(env_id)
+
+        return {
+            "track_index": track_index,
+            "track_name": track.name,
+            "fx_index": fx_index,
+            "fx_name": fx.name,
+            "param_index": param_index,
+            "param_name": param_name,
+            "envelope_index": envelope_index,
+            "envelope_name": env_name,
+            "n_points": n_points,
+            "activated": activate,
+            "default_shape": default_shape,
+            "default_shape_name": _SHAPE_NAMES.get(default_shape, "unknown"),
+        }
+    except ToolError:
+        raise
+    except Exception as exc:
+        raise ToolError(f"Failed to create FX envelope: {exc}") from exc
+
+
+@mcp.tool(
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,
+        "openWorldHint": False,
+    }
+)
+def delete_envelope(
+    track_index: TrackIndex,
+    envelope_index: EnvelopeIndex,
+) -> dict:
+    """Deactivate and clear an envelope.
+
+    REAPER does not support permanently deleting envelopes via the API.
+    This tool clears all points and deactivates the envelope lane.
+    The lane still exists in the track but will be invisible and inactive.
+    """
+    try:
+        import reapy.reascript_api as RPR
+
+        project = get_project()
+        track = validate_track_index(project, track_index)
+        env_id = _validate_envelope_index(track, envelope_index)
+
+        _, _, env_name, _ = RPR.GetEnvelopeName(env_id, "", 256)
+
+        with undo_block(f"Deactivate envelope '{env_name}' on track '{track.name}'"):
+            RPR.DeleteEnvelopePointRangeEx(env_id, -1, 0.0, float('inf'))
+            _edit_envelope_chunk(env_id, active=False, visible=False)
+
+        return {
+            "track_index": track_index,
+            "track_name": track.name,
+            "envelope_index": envelope_index,
+            "envelope_name": env_name,
+            "deactivated": True,
+            "note": "Envelope lane still exists but is inactive and hidden.",
+        }
+    except ToolError:
+        raise
+    except Exception as exc:
+        raise ToolError(f"Failed to deactivate envelope: {exc}") from exc
+
+
+@mcp.tool(annotations={"readOnlyHint": False, "openWorldHint": False})
+def set_envelope_properties(
+    track_index: TrackIndex,
+    envelope_index: EnvelopeIndex,
+    active: Annotated[
+        bool | None,
+        Field(description="Set envelope active state. None to leave unchanged."),
+    ] = None,
+    visible: Annotated[
+        bool | None,
+        Field(description="Set envelope visibility. None to leave unchanged."),
+    ] = None,
+    default_shape: Annotated[
+        int | None,
+        Field(
+            description=(
+                "Default point shape: 0=linear, 1=square, 2=slow start/end, "
+                "3=fast start, 4=fast end, 5=bezier. None to leave unchanged."
+            ),
+            ge=0,
+            le=5,
+        ),
+    ] = None,
+) -> dict:
+    """Modify envelope properties via chunk editing.
+
+    Changes active state, visibility, and/or default point shape.
+    At least one of active, visible, or default_shape must be provided.
+    """
+    try:
+        import reapy.reascript_api as RPR
+
+        if active is None and visible is None and default_shape is None:
+            raise ToolError(
+                "At least one of 'active', 'visible', or 'default_shape' "
+                "must be provided."
+            )
+
+        project = get_project()
+        track = validate_track_index(project, track_index)
+        env_id = _validate_envelope_index(track, envelope_index)
+
+        _, _, env_name, _ = RPR.GetEnvelopeName(env_id, "", 256)
+
+        with undo_block(
+            f"Set envelope properties on '{env_name}' (track '{track.name}')"
+        ):
+            _edit_envelope_chunk(
+                env_id,
+                active=active,
+                visible=visible,
+                default_shape=default_shape,
+            )
+
+        return {
+            "track_index": track_index,
+            "track_name": track.name,
+            "envelope_index": envelope_index,
+            "envelope_name": env_name,
+            "active": active,
+            "visible": visible,
+            "default_shape": default_shape,
+            "default_shape_name": (
+                _SHAPE_NAMES.get(default_shape, "unknown")
+                if default_shape is not None
+                else None
+            ),
+        }
+    except ToolError:
+        raise
+    except Exception as exc:
+        raise ToolError(f"Failed to set envelope properties: {exc}") from exc
+
+
+@mcp.tool(annotations={"readOnlyHint": False, "openWorldHint": False})
+def add_fx_envelope_points(
+    track_index: TrackIndex,
+    envelope_index: EnvelopeIndex,
+    points: Annotated[
+        list[dict],
+        Field(
+            description=(
+                "List of point objects, each with keys: "
+                "'time' (float, seconds), 'value' (float), "
+                "and optionally 'shape' (int 0-5, default 0) "
+                "and 'tension' (float -1.0 to 1.0, default 0.0)."
+            ),
+        ),
+    ],
+    clear_existing: Annotated[
+        bool,
+        Field(description="If true, delete all existing points before adding new ones"),
+    ] = False,
+) -> dict:
+    """Add multiple points to an envelope in one operation.
+
+    All points are inserted in a single undo block with one final sort
+    for efficiency.  Optionally clear all existing points first.
+    """
+    try:
+        import reapy.reascript_api as RPR
+
+        if not points:
+            raise ToolError("The 'points' list must not be empty.")
+
+        project = get_project()
+        track = validate_track_index(project, track_index)
+        env_id = _validate_envelope_index(track, envelope_index)
+
+        _, _, env_name, _ = RPR.GetEnvelopeName(env_id, "", 256)
+
+        # Validate all points before mutating
+        validated = []
+        for i, pt in enumerate(points):
+            if "time" not in pt or "value" not in pt:
+                raise ToolError(
+                    f"Point at index {i} must have 'time' and 'value' keys."
+                )
+            time = float(pt["time"])
+            value = float(pt["value"])
+            shape = int(pt.get("shape", 0))
+            tension = float(pt.get("tension", 0.0))
+
+            if time < 0:
+                raise ToolError(
+                    f"Point at index {i}: time must be >= 0, got {time}."
+                )
+            if shape < 0 or shape > 5:
+                raise ToolError(
+                    f"Point at index {i}: shape must be 0-5, got {shape}."
+                )
+            if tension < -1.0 or tension > 1.0:
+                raise ToolError(
+                    f"Point at index {i}: tension must be -1.0 to 1.0, "
+                    f"got {tension}."
+                )
+            validated.append((time, value, shape, tension))
+
+        with undo_block(
+            f"Add {len(validated)} envelope points to '{env_name}' "
+            f"(track '{track.name}')"
+        ):
+            if clear_existing:
+                RPR.DeleteEnvelopePointRangeEx(env_id, -1, 0.0, float('inf'))
+
+            for time, value, shape, tension in validated:
+                RPR.InsertEnvelopePoint(
+                    env_id, time, value, shape, tension,
+                    False,  # selected
+                    True,   # noSort -- we sort once after all inserts
+                )
+            RPR.Envelope_SortPoints(env_id)
+
+        n_points_after = RPR.CountEnvelopePoints(env_id)
+
+        return {
+            "track_index": track_index,
+            "track_name": track.name,
+            "envelope_index": envelope_index,
+            "envelope_name": env_name,
+            "points_added": len(validated),
+            "cleared_existing": clear_existing,
+            "total_points": n_points_after,
+        }
+    except ToolError:
+        raise
+    except Exception as exc:
+        raise ToolError(f"Failed to add envelope points: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------

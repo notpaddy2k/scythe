@@ -431,3 +431,119 @@ def copy_track_fx(
         raise
     except Exception as exc:
         raise ToolError(f"Failed to copy FX: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Parameter probing
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": False})
+def probe_fx_param_value(
+    track_index: Annotated[int, Field(description="Zero-based track index", ge=0)],
+    fx_index: Annotated[int, Field(description="Zero-based FX slot index", ge=0)],
+    param_index: Annotated[int, Field(description="Zero-based parameter index", ge=0)],
+    target_display: Annotated[
+        str,
+        Field(description="Target display string to search for (e.g. '1000 Hz', '-6.0 dB')"),
+    ],
+    probe_min: Annotated[
+        float,
+        Field(description="Minimum normalized value to probe", ge=0.0, le=1.0),
+    ] = 0.0,
+    probe_max: Annotated[
+        float,
+        Field(description="Maximum normalized value to probe", ge=0.0, le=1.0),
+    ] = 1.0,
+    probe_steps: Annotated[
+        int,
+        Field(description="Number of probe steps (higher = more precise)", ge=10, le=10000),
+    ] = 1000,
+) -> dict:
+    """Discover the normalized value that produces a target display string.
+
+    Probes the parameter across a range of normalized values, reading
+    the formatted display at each step to find a match.  The original
+    parameter value is ALWAYS restored, making this effectively read-only.
+
+    Note: if REAPER crashes during probing the parameter may be left at
+    a probed value.  This is extremely unlikely in practice.
+    """
+    try:
+        project = get_project()
+        track = validate_track_index(project, track_index)
+        fx = validate_fx_index(track, fx_index)
+
+        if param_index < 0 or param_index >= fx.n_params:
+            raise ToolError(
+                f"Parameter index {param_index} out of range. "
+                f"FX '{fx.name}' has {fx.n_params} parameters "
+                f"(valid: 0-{fx.n_params - 1})."
+            )
+
+        if probe_min >= probe_max:
+            raise ToolError(
+                f"probe_min ({probe_min}) must be less than "
+                f"probe_max ({probe_max})."
+            )
+
+        # Save original value
+        original_value = RPR.TrackFX_GetParamNormalized(
+            track.id, fx_index, param_index
+        )
+        try:
+            original_formatted = fx.params[param_index].formatted
+        except Exception:
+            _, _, _, original_formatted, _ = RPR.TrackFX_GetFormattedParamValue(
+                track.id, fx_index, param_index, "", 256
+            )
+
+        target_lower = target_display.strip().lower()
+        found_value = None
+        found_display = None
+        restored = False
+
+        try:
+            step_size = (probe_max - probe_min) / probe_steps
+            for i in range(probe_steps + 1):
+                test_val = probe_min + (i * step_size)
+                test_val = max(0.0, min(1.0, test_val))
+
+                RPR.TrackFX_SetParamNormalized(
+                    track.id, fx_index, param_index, test_val
+                )
+
+                try:
+                    formatted = fx.params[param_index].formatted
+                except Exception:
+                    _, _, _, formatted, _ = RPR.TrackFX_GetFormattedParamValue(
+                        track.id, fx_index, param_index, "", 256
+                    )
+
+                if formatted.strip().lower() == target_lower:
+                    found_value = test_val
+                    found_display = formatted
+                    break
+        finally:
+            # ALWAYS restore original value
+            RPR.TrackFX_SetParamNormalized(
+                track.id, fx_index, param_index, original_value
+            )
+            restored = True
+
+        return {
+            "found": found_value is not None,
+            "internal_value": found_value,
+            "matched_display": found_display,
+            "target_display": target_display,
+            "original_value": original_value,
+            "original_display": original_formatted,
+            "restored": restored,
+            "probe_steps": probe_steps,
+            "probe_min": probe_min,
+            "probe_max": probe_max,
+        }
+    except ToolError:
+        raise
+    except Exception as exc:
+        raise ToolError(f"Failed to probe FX parameter: {exc}") from exc

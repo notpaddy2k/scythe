@@ -57,7 +57,7 @@ def validate_track_index(project: reapy.Project, idx: int) -> reapy.Track:
     if idx < 0 or idx >= n:
         raise ToolError(
             f"Track index {idx} out of range. "
-            f"Project has {n} track{'s' if n != 1 else ''} (valid: 0–{n - 1})."
+            f"Project has {n} track{'s' if n != 1 else ''} (valid: 0-{n - 1})."
         )
     return project.tracks[idx]
 
@@ -68,7 +68,7 @@ def validate_fx_index(track: reapy.Track, idx: int) -> reapy.FX:
     if idx < 0 or idx >= n:
         raise ToolError(
             f"FX index {idx} out of range on track '{track.name}'. "
-            f"Track has {n} FX (valid: 0–{n - 1})."
+            f"Track has {n} FX (valid: 0-{n - 1})."
         )
     return track.fxs[idx]
 
@@ -79,7 +79,7 @@ def validate_item_index(track: reapy.Track, idx: int) -> reapy.Item:
     if idx < 0 or idx >= n:
         raise ToolError(
             f"Item index {idx} out of range on track '{track.name}'. "
-            f"Track has {n} item{'s' if n != 1 else ''} (valid: 0–{n - 1})."
+            f"Track has {n} item{'s' if n != 1 else ''} (valid: 0-{n - 1})."
         )
     return track.items[idx]
 
@@ -92,7 +92,7 @@ def validate_send_index(track: reapy.Track, idx: int, category: int = 0):
     if idx < 0 or idx >= n:
         raise ToolError(
             f"{label.capitalize()} index {idx} out of range on track '{track.name}'. "
-            f"Track has {n} {label}{'s' if n != 1 else ''} (valid: 0–{n - 1})."
+            f"Track has {n} {label}{'s' if n != 1 else ''} (valid: 0-{n - 1})."
         )
 
 

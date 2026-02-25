@@ -377,6 +377,88 @@ def test_envelopes():
         _delete_test_track(idx)
 
 
+def test_fx_envelope_lifecycle():
+    """Create FX envelope, add points, modify properties, deactivate."""
+    idx = _add_test_track("__scythe_fx_env_test__")
+
+    try:
+        # Add ReaEQ
+        fx_result = track_fx.add_track_fx(track_index=idx, fx_name="ReaEQ")
+        fx_idx = fx_result["fx_index"]
+
+        # Create envelope for first parameter
+        env_result = envelopes.create_fx_envelope(
+            track_index=idx, fx_index=fx_idx, param_index=0,
+            activate=True, default_shape=1,
+        )
+        assert env_result["envelope_index"] >= 0, "Envelope not found in track list"
+        env_idx = env_result["envelope_index"]
+
+        # List envelopes to verify
+        env_list = envelopes.list_track_envelopes(track_index=idx)
+        assert env_list["n_envelopes"] >= 1, "Envelope not listed"
+
+        # Add multiple points in bulk
+        pts_result = envelopes.add_fx_envelope_points(
+            track_index=idx, envelope_index=env_idx,
+            points=[
+                {"time": 0.0, "value": 0.5, "shape": 0},
+                {"time": 2.0, "value": 0.8, "shape": 1},
+            ],
+        )
+        assert pts_result["points_added"] == 2, "Points not added"
+        assert pts_result["total_points"] == 2, "Point count mismatch"
+
+        # Read back points
+        pt_result = envelopes.get_envelope_points(
+            track_index=idx, envelope_index=env_idx,
+        )
+        assert pt_result["n_points"] == 2, "Point count mismatch after read-back"
+
+        # Toggle visibility via set_envelope_properties
+        envelopes.set_envelope_properties(
+            track_index=idx, envelope_index=env_idx, visible=False,
+        )
+
+        # Deactivate envelope
+        del_result = envelopes.delete_envelope(
+            track_index=idx, envelope_index=env_idx,
+        )
+        assert del_result["deactivated"] is True, "Envelope not deactivated"
+
+        # Clean up FX
+        track_fx.remove_track_fx(track_index=idx, fx_index=fx_idx)
+    finally:
+        _delete_test_track(idx)
+
+
+def test_probe_fx_param():
+    """Probe FX parameter to find normalized value for a display string."""
+    idx = _add_test_track("__scythe_probe_test__")
+
+    try:
+        # Add ReaEQ
+        fx_result = track_fx.add_track_fx(track_index=idx, fx_name="ReaEQ")
+        fx_idx = fx_result["fx_index"]
+
+        # Get current display of param 0 to use as target
+        params = track_fx.get_track_fx_params(track_index=idx, fx_index=fx_idx)
+        if params["params"]:
+            target = params["params"][0]["formatted"]
+            result = track_fx.probe_fx_param_value(
+                track_index=idx, fx_index=fx_idx, param_index=0,
+                target_display=target,
+                probe_steps=100,
+            )
+            assert result["found"] is True, f"Could not find value for '{target}'"
+            assert result["restored"] is True, "Original value not restored"
+
+        # Clean up
+        track_fx.remove_track_fx(track_index=idx, fx_index=fx_idx)
+    finally:
+        _delete_test_track(idx)
+
+
 def test_time_selection():
     """Set and get time selection, then clear it."""
     time_selection.set_time_selection(start=2.0, end=8.0)
@@ -463,6 +545,8 @@ def main():
         run_test("item_lifecycle", test_item_lifecycle)
         run_test("midi_lifecycle", test_midi_lifecycle)
         run_test("envelopes", test_envelopes)
+        run_test("fx_envelope_lifecycle", test_fx_envelope_lifecycle)
+        run_test("probe_fx_param", test_probe_fx_param)
         run_test("time_selection", test_time_selection)
         run_test("loop", test_loop)
         run_test("ext_state", test_ext_state)
