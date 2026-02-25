@@ -498,8 +498,9 @@ def probe_fx_param_value(
             ret = RPR.TrackFX_GetFormattedParamValue(
                 track.id, fx_index, param_index, "", 256
             )
-            if isinstance(ret, (list, tuple)) and len(ret) >= 4:
-                return str(ret[3])
+            # [retval, track, fx, param, buf_out, buf_sz]
+            if isinstance(ret, (list, tuple)) and len(ret) >= 5:
+                return str(ret[4])
             return str(ret)
 
         original_formatted = _read_display()
